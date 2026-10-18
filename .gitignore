@@ -1,0 +1,4 @@
+/target/
+.plasma/settings.local.json
+/sources/
+/AGENTS.md
