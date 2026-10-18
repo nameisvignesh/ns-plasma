@@ -1,6 +1,8 @@
 # NS Plasma
 
-NS Plasma is a Rust-native coding workspace with the supplied NS logo, an integrated file explorer/editor, a provider-backed agent panel, and a matching headless CLI.
+[![CI](https://github.com/nameisvignesh/ns-plasma/actions/workflows/ci.yml/badge.svg)](https://github.com/nameisvignesh/ns-plasma/actions/workflows/ci.yml)
+
+NS Plasma is a Rust-native coding workspace with the supplied NS logo, an integrated file explorer/editor, a provider-backed agent panel, and a matching headless CLI. Its default layout is intentionally familiar to Claude Code users: project context on the left, the working surface in the center, and the agent conversation on the right.
 
 The current MVP deliberately uses an honest empty state: it never invents credentials or model IDs. Configure any OpenAI-compatible endpoint through the UI or CLI:
 
@@ -22,8 +24,10 @@ cargo run -- doctor
 cargo run
 ```
 
+Release tags are published by GitHub Actions after the same format, test, build, and CLI checks pass. See [`docs/release-checklist.md`](docs/release-checklist.md).
+
 The app uses the provided [`assets/logo.png`](assets/logo.png) and displays the `NS Plasma` wordmark in the desktop header. Synced reference files under `sources/` are intentionally left untouched.
 
 ## Scope
 
-This is the first working Rust foundation for the larger roadmap in the supplied master prompt. The provider adapter, config boundary, workspace-safe file operations, GUI shell, and CLI are implemented first; plugin hosting, MCP UI, persistent sessions, and OS sandboxing remain later milestones.
+This is the first release foundation for the larger roadmap in the supplied master prompt. The provider adapter, config boundary, workspace-safe file operations, GUI shell, keyboard-friendly command palette, and CLI are implemented first; plugin hosting, MCP UI, persistent sessions, and OS sandboxing remain later milestones.

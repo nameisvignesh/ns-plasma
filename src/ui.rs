@@ -25,6 +25,7 @@ pub struct PlasmaApp {
     busy: bool,
     response_rx: Option<Receiver<Result<String, String>>>,
     show_settings: bool,
+    show_palette: bool,
 }
 
 impl PlasmaApp {
@@ -42,6 +43,7 @@ impl PlasmaApp {
             busy: false,
             response_rx: None,
             show_settings: false,
+            show_palette: false,
         };
         if let Some(first) = app.files.first().cloned() {
             app.open_file(first);
@@ -147,15 +149,19 @@ impl PlasmaApp {
 
     fn settings_panel(&mut self, ui: &mut egui::Ui) {
         ui.heading("Settings");
-        ui.label("Provider");
+        ui.label(RichText::new("Provider").strong());
         let mut provider = self.config.provider.clone().unwrap_or_default();
+        ui.label("Provider name");
         ui.add(TextEdit::singleline(&mut provider.name).hint_text("Name"));
+        ui.label("Base URL");
         ui.add(
             TextEdit::singleline(&mut provider.base_url)
                 .hint_text("Base URL, e.g. http://localhost:11434/v1"),
         );
+        ui.label("Model ID");
         ui.add(TextEdit::singleline(&mut provider.model).hint_text("Model ID from the provider"));
         let mut api_key_env = provider.api_key_env.clone().unwrap_or_default();
+        ui.label("API key environment variable");
         ui.add(
             TextEdit::singleline(&mut api_key_env)
                 .hint_text("API key environment variable (optional)"),
@@ -173,11 +179,69 @@ impl PlasmaApp {
         ui.separator();
         ui.label(RichText::new("Secrets stay outside settings.json. Set the named environment variable before testing a remote provider.").small().color(Color32::GRAY));
     }
+
+    fn handle_shortcuts(&mut self, ctx: &egui::Context) {
+        let (open_palette, open_settings, save) = ctx.input(|input| {
+            (
+                input.modifiers.ctrl && input.modifiers.shift && input.key_pressed(egui::Key::P),
+                input.modifiers.ctrl && input.key_pressed(egui::Key::Comma),
+                input.modifiers.ctrl && input.key_pressed(egui::Key::S),
+            )
+        });
+        if open_palette {
+            self.show_palette = true;
+        }
+        if open_settings {
+            self.show_settings = true;
+        }
+        if save {
+            self.save_file();
+        }
+    }
+
+    fn command_palette(&mut self, ctx: &egui::Context) {
+        if !self.show_palette {
+            return;
+        }
+        let mut open = true;
+        let mut should_close = false;
+        egui::Window::new("Command palette")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_width(420.0)
+            .show(ctx, |ui| {
+                ui.label("Choose a command");
+                if ui.button("Open Settings   Ctrl+,").clicked() {
+                    self.show_settings = true;
+                    should_close = true;
+                }
+                if ui.button("Save active file   Ctrl+S").clicked() {
+                    self.save_file();
+                    should_close = true;
+                }
+                if ui.button("Refresh project files").clicked() {
+                    self.files = tools::list_text_files(&self.workspace);
+                    self.status = "Project files refreshed".to_owned();
+                    should_close = true;
+                }
+                if ui.button("Toggle light / dark theme").clicked() {
+                    self.config.ui.theme = if self.config.ui.theme == "plasma-light" {
+                        "plasma-dark".to_owned()
+                    } else {
+                        "plasma-light".to_owned()
+                    };
+                    should_close = true;
+                }
+            });
+        self.show_palette = open && !should_close;
+    }
 }
 
 impl eframe::App for PlasmaApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.poll_response();
+        self.handle_shortcuts(ctx);
         ctx.request_repaint_after(Duration::from_millis(100));
         let dark = self.config.ui.theme != "plasma-light";
         if dark {
@@ -196,6 +260,12 @@ impl eframe::App for PlasmaApp {
                 ui.label(RichText::new("Plasma").color(Color32::from_rgb(140, 168, 255)));
                 ui.separator();
                 ui.label(self.workspace.display().to_string());
+                ui.separator();
+                ui.label(
+                    RichText::new("Ctrl+Shift+P Commands · Ctrl+, Settings · Ctrl+S Save")
+                        .small()
+                        .color(Color32::GRAY),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button("⚙ Settings").clicked() {
                         self.show_settings = !self.show_settings;
@@ -255,6 +325,7 @@ impl eframe::App for PlasmaApp {
                         .unwrap_or_else(|| "No provider configured".to_owned()),
                 );
                 ui.separator();
+                ui.label(RichText::new("Conversation").strong());
                 egui::ScrollArea::vertical()
                     .stick_to_bottom(true)
                     .show(ui, |ui| {
@@ -311,11 +382,41 @@ impl eframe::App for PlasmaApp {
                     ui.available_size(),
                     TextEdit::multiline(&mut self.editor_text)
                         .font(TextStyle::Monospace)
-                        .desired_rows(30)
-                        .lock_focus(true),
+                        .desired_rows(30),
                 );
             }
         });
+
+        egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("ASK")
+                        .strong()
+                        .color(Color32::from_rgb(140, 168, 255)),
+                );
+                ui.separator();
+                ui.label(
+                    self.config
+                        .provider
+                        .as_ref()
+                        .map(|provider| provider.name.as_str())
+                        .unwrap_or("No provider"),
+                );
+                ui.separator();
+                ui.label(
+                    self.active_file
+                        .as_ref()
+                        .and_then(|path| path.file_name())
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("No file selected"),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(RichText::new(&self.status).small().color(Color32::GRAY));
+                });
+            });
+        });
+
+        self.command_palette(ctx);
     }
 }
 

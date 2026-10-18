@@ -3,7 +3,7 @@ use std::time::Duration;
 use reqwest::{
     Method,
     blocking::Client,
-    header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue},
+    header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -145,6 +145,8 @@ impl ProviderClient {
     ) -> Result<reqwest::blocking::Response, ProviderError> {
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
+        let mut secret = None;
         if let Some(environment) = self
             .settings
             .api_key_env
@@ -156,6 +158,7 @@ impl ProviderClient {
             let value = HeaderValue::from_str(&format!("Bearer {key}"))
                 .map_err(|_| ProviderError::MissingApiKey(environment.to_owned()))?;
             headers.insert(AUTHORIZATION, value);
+            secret = Some(key);
         }
         let mut request = self.client.request(method, url).headers(headers);
         if let Some(body) = body {
@@ -164,9 +167,16 @@ impl ProviderClient {
         let response = request.send()?;
         if !response.status().is_success() {
             let status = response.status();
-            let body = response
+            let mut body = response
                 .text()
                 .unwrap_or_else(|_| "<unreadable response>".to_owned());
+            if let Some(secret) = secret.as_deref() {
+                body = body.replace(secret, "[REDACTED]");
+            }
+            if body.len() > 4096 {
+                body.truncate(4096);
+                body.push_str("…");
+            }
             return Err(ProviderError::Http { status, body });
         }
         Ok(response)
