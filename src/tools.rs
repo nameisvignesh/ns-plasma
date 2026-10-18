@@ -142,7 +142,7 @@ mod tests {
         let root = std::env::temp_dir().join(format!("ns-plasma-tools-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("temp root");
-        let result = write_text(&root, Path::new("..\\outside.txt"), "nope");
+        let result = write_text(&root, Path::new("..").join("outside.txt").as_path(), "nope");
         assert!(matches!(result, Err(WorkspaceError::OutsideWorkspace)));
         let _ = fs::remove_dir_all(root);
     }
